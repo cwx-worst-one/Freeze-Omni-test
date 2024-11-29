@@ -91,7 +91,7 @@ def decoder(cur_hidden_state, pipeline, cur_text, tts, codec_chunk_size, codec_p
                         codec_chunk_size, codec_padding_size):
         wav.append(seg)
 
-def inference(pipeline, audio_processor, tts, configs):
+def inference(pipeline, audio_processor, tts, input_wav_path, output_wav_path):
     """
     Perform inference for a speech dialogue system.
 
@@ -99,12 +99,13 @@ def inference(pipeline, audio_processor, tts, configs):
     - pipeline: Speech dialogue pipeline.
     - audio_processor: Processes raw audio data into a format suitable for the pipeline.
     - tts: The speech decoder moudule.
-    - configs: Input args.
+    - input_wav_path: Path to the input wav file.
+    - output_wav_path: Path to the output wav file.
 
     Returns:
     - None
     """
-    wav, fs = sf.read(configs.input_wav)
+    wav, fs = sf.read(input_wav_path)
     wav = torch.tensor(wav)
     if fs != 16000:
         wav = torchaudio.transforms.Resample(orig_freq=fs, new_freq=16000)(wav.float())
@@ -177,7 +178,7 @@ def inference(pipeline, audio_processor, tts, configs):
         decoder(cur_hidden_state, pipeline, cur_text, tts, 
                 codec_chunk_size, codec_padding_size, decoder_topk, wav)
 
-    sf.write(configs.output_wav, torch.cat(wav, -1).squeeze().float().cpu().numpy(), 24000)
+    sf.write(output_wav_path, torch.cat(wav, -1).squeeze().float().cpu().numpy(), 24000)
     outputs['stat'] = 'sl'
     outputs['last_id'] = None
     print(whole_text)
@@ -187,4 +188,16 @@ if __name__ == '__main__':
     pipeline = inferencePipeline(configs)
     tts = llm2TTS(configs.model_path)
     audio_processor = audioEncoderProcessor()
-    inference(pipeline, audio_processor, tts, configs)
+
+    # 做批量处理的时候这里加个循环就好了
+    inference(pipeline, audio_processor, tts, configs.input_wav, configs.output_wav)
+
+
+# python bin/inference.py \
+#     --model_path ./checkpoints \
+#     --llm_path ./Qwen2-7B-Instruct \
+#     --input_wav $input_wav \
+#     --output_wav $output_wav \
+#     --top_k 20 \
+#     --top_p 0.8 \
+#     --temperature 0.8
